@@ -73,15 +73,51 @@ class Ensemble(nn.ModuleList):
 def attempt_load(weights, device=None, inplace=True, fuse=True):
     # Loads an ensemble of models weights=[a,b,c] or a single model weights=[a] or weights=a
     from models.yolo import Detect, Model
-
+    import json
     model = Ensemble()
     for w in weights if isinstance(weights, list) else [weights]:
+        # ckpt: checkpoint 用于存储从模型权重文件中加载的模型状态
+        # 这里的ckpt是所有参数
+        # 包含epoch, best_fitness, model, ema, updates, optimizer, wandb_id,date
         ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
+        
+				## 可以用下面的函数进行测试
+        """
+				# def serialize(obj):
+        #     if isinstance(obj, torch.Tensor):
+        #         return f"Tensor of size: {obj.size()}"  # More readable format for tensors
+        #     elif isinstance(obj, dict):
+        #         return {key: serialize(value) for key, value in obj.items()}
+        #     elif isinstance(obj, list):
+        #         return [serialize(item) for item in obj]
+        #     else:
+        #         return str(obj)
+        """
+
+        # 测试处理前的ckpt是什么
+        """
+        # serialized_checkpoint = serialize(ckpt)
+        # with open('ckpt_details_before.txt', 'w') as file:
+        #     json.dump(serialized_checkpoint, file, indent=4, ensure_ascii=False)
+            
+				"""
+
+				# 这里只提取在上面ckpt中包含的'model'字段, 移除epoch等其他字段
         ckpt = (ckpt.get('ema') or ckpt['model']).to(device).float()  # FP32 model
+        
+				# 测试处理后的数据是什么
+        """
+				# serialized_checkpoint_model = serialize(ckpt)
+        # Write the serialized model state dict to a file after processing
+        # with open('ckpt_details_after.txt', 'w') as file:
+        #     json.dump(serialized_checkpoint_model, file, indent=4, ensure_ascii=False)
+				"""
 
         # Model compatibility updates
         if not hasattr(ckpt, 'stride'):
             ckpt.stride = torch.tensor([32.])
+            
+        # 这里的yolov5s.pt不包含names
         if hasattr(ckpt, 'names') and isinstance(ckpt.names, (list, tuple)):
             ckpt.names = dict(enumerate(ckpt.names))  # convert to dict
 
