@@ -107,7 +107,7 @@ def attempt_load(weights, device=None, inplace=True, fuse=True):
         
 				# 测试处理后的数据是什么
         """
-				# serialized_checkpoint_model = serialize(ckpt)
+        # serialized_checkpoint_model = serialize(ckpt)
         # Write the serialized model state dict to a file after processing
         # with open('ckpt_details_after.txt', 'w') as file:
         #     json.dump(serialized_checkpoint_model, file, indent=4, ensure_ascii=False)

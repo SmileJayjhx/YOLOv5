@@ -312,23 +312,29 @@ class Concat(nn.Module):
     def forward(self, x):
         return torch.cat(x, self.d)
 
-
+'''
+DetectMultiBackend 类是一个多后端推理类，
+用于在不同的推理框架（如 PyTorch、TorchScript、ONNX、TensorRT、OpenVINO、TensorFlow、CoreML、PaddlePaddle 等）上
+加载和执行 YOLOv5 模型。
+初始化函数会根据提供的权重文件类型加载相应的模型，
+并设置模型的设备、数据格式和推理所需的其他参数。
+forward 函数根据不同的后端执行推理，并返回推理结果。
+该类还提供了预热功能，用于通过运行一次推理来预热模型。
+'''
 class DetectMultiBackend(nn.Module):
     # YOLOv5 MultiBackend class for python inference on various backends
     def __init__(self, weights='yolov5s.pt', device=torch.device('cpu'), dnn=False, data=None, fp16=False, fuse=True):
-        # Usage:
-        #   PyTorch:              weights = *.pt
-        #   TorchScript:                    *.torchscript
-        #   ONNX Runtime:                   *.onnx
-        #   ONNX OpenCV DNN:                *.onnx --dnn
-        #   OpenVINO:                       *_openvino_model
-        #   CoreML:                         *.mlmodel
-        #   TensorRT:                       *.engine
-        #   TensorFlow SavedModel:          *_saved_model
-        #   TensorFlow GraphDef:            *.pb
-        #   TensorFlow Lite:                *.tflite
-        #   TensorFlow Edge TPU:            *_edgetpu.tflite
-        #   PaddlePaddle:                   *_paddle_model
+        """
+        初始化函数，设置模型权重、设备、是否使用OpenCV DNN、数据、是否使用FP16、是否融合模型等参数。
+
+        参数:
+        weights (str): 模型权重文件路径。
+        device (torch.device): 使用的设备，默认为CPU。
+        dnn (bool): 是否使用OpenCV DNN进行推理。
+        data (dict): 数据集相关的信息。
+        fp16 (bool): 是否使用半精度浮点数。
+        fuse (bool): 是否融合模型。
+        """
         from models.experimental import attempt_download, attempt_load  # scoped to avoid circular import
 
         super().__init__()
@@ -520,6 +526,17 @@ class DetectMultiBackend(nn.Module):
         self.__dict__.update(locals())  # assign all variables to self
 
     def forward(self, im, augment=False, visualize=False):
+        """
+        YOLOv5 MultiBackend 推理
+
+        参数:
+        im (torch.Tensor): 输入图像张量。
+        augment (bool): 是否进行数据增强。
+        visualize (bool): 是否可视化推理过程。
+
+        返回:
+        torch.Tensor: 推理结果。
+        """
         # YOLOv5 MultiBackend inference
         b, ch, h, w = im.shape  # batch, channel, height, width
         if self.fp16 and im.dtype != torch.float16:
@@ -602,9 +619,24 @@ class DetectMultiBackend(nn.Module):
             return self.from_numpy(y)
 
     def from_numpy(self, x):
+        """
+        将 numpy 数组转换为 torch 张量。
+
+        参数:
+        x (numpy.ndarray): 要转换的数组。
+
+        返回:
+        torch.Tensor: 转换后的张量。
+        """
         return torch.from_numpy(x).to(self.device) if isinstance(x, np.ndarray) else x
 
     def warmup(self, imgsz=(1, 3, 640, 640)):
+        """
+        通过运行一次推理来预热模型。
+
+        参数:
+        imgsz (tuple): 输入图像的尺寸。
+        """
         # Warmup model by running inference once
         warmup_types = self.pt, self.jit, self.onnx, self.engine, self.saved_model, self.pb, self.triton
         if any(warmup_types) and (self.device.type != 'cpu' or self.triton):
@@ -614,6 +646,15 @@ class DetectMultiBackend(nn.Module):
 
     @staticmethod
     def _model_type(p='path/to/model.pt'):
+        """
+        从模型路径返回模型类型，例如 path='path/to/model.onnx' -> type=onnx
+
+        参数:
+        p (str): 模型路径。
+
+        返回:
+        tuple: 模型类型元组。
+        """
         # Return model type from model path, i.e. path='path/to/model.onnx' -> type=onnx
         # types = [pt, jit, onnx, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle]
         from export import export_formats
@@ -629,6 +670,15 @@ class DetectMultiBackend(nn.Module):
 
     @staticmethod
     def _load_metadata(f=Path('path/to/meta.yaml')):
+        """
+        如果存在，从 meta.yaml 加载元数据。
+
+        参数:
+        f (Path): 元数据文件路径。
+
+        返回:
+        tuple: 包含步幅和类名的元组。
+        """
         # Load metadata from meta.yaml if it exists
         if f.exists():
             d = yaml_load(f)

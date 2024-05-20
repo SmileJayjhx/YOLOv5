@@ -107,6 +107,7 @@ def run(
     # 如果没有配置devices, 即使电脑存在多台支持cuda的显卡, 也只会使用第一块 device: 0
     device = select_device(device)
 
+    # 用于在特定的推理框架（如 PyTorch、TensorFlow、CoreML等）上加载和执行 YOLOv5 模型
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
     stride, names, pt = model.stride, model.names, model.pt
     imgsz = check_img_size(imgsz, s=stride)  # check image size
