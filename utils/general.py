@@ -428,6 +428,8 @@ def check_img_size(imgsz, s=32, floor=0):
 def check_imshow(warn=False):
     # Check if environment supports image displays
     try:
+        # 当is_notebook, is_docker为true时, 触发断言错误(AssertionError)
+        # assert在后面的bool为false时触发
         assert not is_notebook()
         assert not is_docker()
         cv2.imshow('test', np.zeros((1, 1, 3)))

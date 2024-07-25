@@ -115,7 +115,9 @@ def run(
     # Dataloader
     bs = 1  # batch_size
     if webcam:
+        # 测试是否支持cv.imshow()
         view_img = check_imshow(warn=True)
+        # 为每一个视频源单开一个线程
         dataset = LoadStreams(source, img_size=imgsz, stride=stride, auto=pt, vid_stride=vid_stride)
         bs = len(dataset)
     elif screenshot:

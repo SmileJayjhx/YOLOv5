@@ -335,52 +335,59 @@ class LoadImages:
     def __len__(self):
         return self.nf  # number of files
 
-
 class LoadStreams:
-    # YOLOv5 streamloader, i.e. `python detect.py --source 'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP streams`
+    # 对每个视频源启动一个线程进行持续的视频帧读取
     def __init__(self, sources='streams.txt', img_size=640, stride=32, auto=True, transforms=None, vid_stride=1):
-        torch.backends.cudnn.benchmark = True  # faster for fixed-size inference
-        self.mode = 'stream'
-        self.img_size = img_size
-        self.stride = stride
-        self.vid_stride = vid_stride  # video frame-rate stride
+        torch.backends.cudnn.benchmark = True  # 设置 PyTorch 为固定大小推理加速
+        self.mode = 'stream'  # 模式设定为 'stream' 表示视频流
+        self.img_size = img_size  # 视频帧处理的目标尺寸
+        self.stride = stride  # 步长，用于模型处理时的参数
+        self.vid_stride = vid_stride  # 视频帧率间隔，控制读取帧的速率
+        
+        # 根据输入sources确定视频流地址，支持从文件读取或直接指定单个地址
         sources = Path(sources).read_text().rsplit() if os.path.isfile(sources) else [sources]
         n = len(sources)
-        self.sources = [clean_str(x) for x in sources]  # clean source names for later
+        self.sources = [clean_str(x) for x in sources]  # 清理视频流地址字符串
+        
+        # 初始化一些列表存储每个视频流的信息
         self.imgs, self.fps, self.frames, self.threads = [None] * n, [0] * n, [0] * n, [None] * n
-        for i, s in enumerate(sources):  # index, source
-            # Start thread to read frames from video stream
-            st = f'{i + 1}/{n}: {s}... '
-            if urlparse(s).hostname in ('www.youtube.com', 'youtube.com', 'youtu.be'):  # if source is YouTube video
-                # YouTube format i.e. 'https://www.youtube.com/watch?v=Zgi9g1ksQHc' or 'https://youtu.be/Zgi9g1ksQHc'
+        
+        for i, s in enumerate(sources):
+            if urlparse(s).hostname in ('www.youtube.com', 'youtube.com', 'youtu.be'):
+                # 如果是YouTube视频，使用pafy和youtube_dl来获取真实的视频流地址
                 check_requirements(('pafy', 'youtube_dl==2020.12.2'))
                 import pafy
-                s = pafy.new(s).getbest(preftype="mp4").url  # YouTube URL
-            s = eval(s) if s.isnumeric() else s  # i.e. s = '0' local webcam
+                s = pafy.new(s).getbest(preftype="mp4").url
+
+            s = eval(s) if s.isnumeric() else s  # 处理本地摄像头编号，如 '0'
+            
+            # 防止在不支持的环境中使用本地摄像头
             if s == 0:
                 assert not is_colab(), '--source 0 webcam unsupported on Colab. Rerun command in a local environment.'
                 assert not is_kaggle(), '--source 0 webcam unsupported on Kaggle. Rerun command in a local environment.'
+            
+            # 打开视频流并确保成功
             cap = cv2.VideoCapture(s)
             assert cap.isOpened(), f'{st}Failed to open {s}'
             w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS)  # warning: may return 0 or nan
-            self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
-            self.fps[i] = max((fps if math.isfinite(fps) else 0) % 100, 0) or 30  # 30 FPS fallback
-
-            _, self.imgs[i] = cap.read()  # guarantee first frame
+            fps = cap.get(cv2.CAP_PROP_FPS)  # 获取帧率，可能为0或nan
+            
+            # 初始化视频帧数和帧率
+            self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')
+            self.fps[i] = max((fps if math.isfinite(fps) else 0) % 100, 0) or 30  # 默认帧率为30
+            
+            # 读取第一帧并启动线程持续读取视频流
+            _, self.imgs[i] = cap.read()
             self.threads[i] = Thread(target=self.update, args=([i, cap, s]), daemon=True)
             LOGGER.info(f"{st} Success ({self.frames[i]} frames {w}x{h} at {self.fps[i]:.2f} FPS)")
             self.threads[i].start()
-        LOGGER.info('')  # newline
 
-        # check for common shapes
+        # 检查视频流帧的形状是否一致，决定是否启用矩形推理优化
         s = np.stack([letterbox(x, img_size, stride=stride, auto=auto)[0].shape for x in self.imgs])
-        self.rect = np.unique(s, axis=0).shape[0] == 1  # rect inference if all shapes equal
+        self.rect = np.unique(s, axis=0).shape[0] == 1  # 所有视频流帧形状相同则启用矩形推理
         self.auto = auto and self.rect
-        self.transforms = transforms  # optional
-        if not self.rect:
-            LOGGER.warning('WARNING ⚠️ Stream shapes differ. For optimal performance supply similarly-shaped streams.')
+        self.transforms = transforms  # 可选的图像转换操作
 
     def update(self, i, cap, stream):
         # Read stream `i` frames in daemon thread
